@@ -128,5 +128,3 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 Contribuições são bem-vindas! Sinta-se livre para abrir issues e pull requests.
 
 ---
-
-Desenvolvido com ❤️ para a comunidade UFCA
