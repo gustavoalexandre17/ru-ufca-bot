@@ -106,15 +106,6 @@ ru-ufca-bot/
 └── ARCHITECTURE.md         # Documentação de arquitetura
 ```
 
-## 🎯 Roadmap
-
-- [x] Documentação de arquitetura
-- [x] Setup da estrutura do projeto
-- [ ] Implementação do Cache Layer (TDD)
-- [ ] Implementação do PDF Parser (TDD)
-- [ ] Implementação dos Handlers (TDD)
-- [ ] Deploy em produção
-
 ## 📝 Licença
 
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
