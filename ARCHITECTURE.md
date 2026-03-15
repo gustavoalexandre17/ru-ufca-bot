@@ -9,14 +9,14 @@
 
 ## Stack
 
-| Componente | Tecnologia |
-|------------|------------|
-| Linguagem | Python 3.10+ (Docker), 3.14 (dev local) |
-| Bot | python-telegram-bot 22.6 |
-| PDF | pdfplumber 0.10.3 |
-| Scheduler | APScheduler 3.10.4 |
+| Componente | Tecnologia                                   |
+|------------|----------------------------------------------|
+| Linguagem | Python 3.10+ (Docker), 3.14 (dev local)      |
+| Bot | python-telegram-bot 22.6                     |
+| PDF | pdfplumber 0.10.3                            |
+| Scheduler | APScheduler 3.10.4                           |
 | Persistência | JSON (data/menu_cache.json, data/users.json) |
-| Deploy | Docker + Oracle Cloud Free Tier |
+| Deploy | Docker + Oracle Cloud                        |
 
 ---
 
@@ -73,19 +73,12 @@ src/
 
 ## Deploy
 
-- **VM:** Oracle Cloud Free Tier (VM.Standard.E2.1.Micro)
-- **Container:** python:3.10-slim com docker-compose
-- **Restart:** unless-stopped
-- **Volume:** ./data:/app/data (persiste cache)
+- **VM:** Oracle Cloud
+- **Container:** Docker 
 
 **Ciclo de atualização:**
-```bash
-ssh ubuntu@<ip-da-vm>
-cd ru-ufca-bot
-git pull
-docker compose up -d --build
-```
 
+Atualização via pull + rebuild do container. (Passivel de automatização futura com CI/CD)
 ---
 
 ## Testes
