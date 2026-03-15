@@ -2,8 +2,8 @@
 
 > Documento de decisões arquiteturais para o bot de Telegram do Restaurante Universitário da UFCA
 
-**Data:** 14 de março de 2026  
-**Status:** Em Desenvolvimento  
+**Data:** 15 de março de 2026  
+**Status:** Em Produção  
 **Autor:** Gustavo Alexandre  
 **Metodologia:** Test-Driven Development (TDD)
 
@@ -24,7 +24,7 @@ Criar um bot de Telegram que forneça informações sobre o cardápio do Restaur
 
 ## 2. Decisões Tecnológicas
 
-### 2.1. Linguagem: Python 3.11+
+### 2.1. Linguagem: Python 3.10+ (produção), 3.14 (desenvolvimento local)
 
 **Decisão:** Utilizar Python como linguagem principal do projeto.
 
@@ -32,6 +32,14 @@ Criar um bot de Telegram que forneça informações sobre o cardápio do Restaur
 - Necessidade de prototipagem rápida para MVP
 - Facilidade de manutenção futura
 - Rico ecossistema de bibliotecas
+
+**Versões:**
+- **Desenvolvimento local:** Python 3.14.3
+- **Produção (Docker):** Python 3.10-slim
+
+**Nota de compatibilidade:**
+- `python-telegram-bot 22.6` exige Python 3.10+
+- Ubuntu 20.04 da VM Oracle tem Python 3.8.10 (incompatível) → Docker resolve
 
 **Alternativas Consideradas:**
 - Node.js (Telegraf/Grammy)
@@ -50,9 +58,11 @@ Criar um bot de Telegram que forneça informações sobre o cardápio do Restaur
 
 ---
 
-### 2.2. Biblioteca Telegram: python-telegram-bot v20+
+### 2.2. Biblioteca Telegram: python-telegram-bot v22.6
 
 **Decisão:** Utilizar `python-telegram-bot` como biblioteca principal para interação com a API do Telegram.
+
+**Nota de compatibilidade:** A versão 20.7 é incompatível com Python 3.14. Atualizado para 22.6.
 
 **Alternativas Consideradas:**
 
@@ -128,28 +138,37 @@ ru-ufca-bot/
 │   ├── bot/
 │   │   ├── __init__.py
 │   │   ├── handlers.py          # Comandos do bot (/start, /almoco, etc)
-│   │   └── scheduler.py         # Lógica de notificações agendadas
+│   │   ├── scheduler.py         # Lógica de notificações agendadas
+│   │   └── formatter.py         # Formatação de mensagens com emojis
 │   ├── scraper/
 │   │   ├── __init__.py
 │   │   ├── pdf_parser.py        # Extração de texto do PDF
 │   │   └── menu_extractor.py    # Parsing e estruturação do cardápio
 │   ├── cache/
 │   │   ├── __init__.py
-│   │   └── menu_cache.py        # Gerenciamento de cache JSON
+│   │   └── menu_cache.py        # Gerenciamento de cache JSON (MenuCache + UserManager)
 │   └── main.py                  # Entry point da aplicação
 ├── data/
-│   ├── menus.json               # Cache de cardápios da semana
+│   ├── menu_cache.json          # Cache de cardápios da semana
 │   └── users.json               # Lista de chat_ids inscritos
 ├── tests/
 │   ├── __init__.py
 │   ├── test_pdf_parser.py
-│   └── test_menu_extractor.py
+│   ├── test_menu_extractor.py
+│   ├── test_menu_cache.py
+│   ├── test_formatter.py
+│   ├── test_handlers.py
+│   └── test_scheduler.py
 ├── .env.example                 # Template de variáveis de ambiente
 ├── .gitignore
+├── .dockerignore
 ├── requirements.txt
+├── requirements-dev.txt
+├── docker-compose.yml           # Orquestração do container
+├── Dockerfile                  # Imagem Python 3.10-slim
+├── pytest.ini
 ├── README.md
 ├── ARCHITECTURE.md              # Este documento
-├── Dockerfile                   # Para deploy futuro
 └── LICENSE
 ```
 
@@ -165,7 +184,7 @@ ru-ufca-bot/
 #### A. Obtenção do Cardápio (Upload Manual - MVP)
 
 ```
-Admin → /upload (Telegram)
+Admin → Envia documento PDF (Telegram)
     ↓
 Bot recebe arquivo PDF
     ↓
@@ -173,10 +192,12 @@ pdf_parser.py extrai texto
     ↓
 menu_extractor.py identifica estrutura
     ↓
-Salva em data/menus.json
+Salva em data/menu_cache.json
     ↓
 Confirma sucesso ao admin
 ```
+
+**Nota:** O upload é feito enviando o arquivo PDF diretamente para o bot (não via comando /upload).
 
 **Estratégia de Parsing:**
 1. Extração de texto completo com `pdfplumber`
@@ -300,8 +321,13 @@ Envia broadcast formatado
 | `/janta` | Todos | Exibe cardápio da janta de hoje |
 | `/semana` | Todos | Exibe cardápio completo da semana |
 | `/parar` | Todos | Remove das notificações automáticas |
-| `/upload` | Admin | Upload de PDF para processar |
 | `/help` | Todos | Lista de comandos disponíveis |
+| Enviar PDF | Admin | Enviando documento PDF, o bot processa automaticamente |
+
+**Upload de Cardápio:**
+- Admin envia o arquivo PDF diretamente para o bot
+- Bot detecta formato PDF, processa e salva no cache
+- Não há comando explícito; é identificado pelo tipo de arquivo
 
 **Comandos Futuros (Pós-MVP):**
 - `/corrigir` - Admin ajusta cardápio manualmente
@@ -358,13 +384,13 @@ Bom apetite! 😋
 - Fácil inspeção e debug
 
 **Arquivos:**
-- `data/menus.json` - Cardápios da semana
+- `data/menu_cache.json` - Cardápios da semana
 - `data/users.json` - Chat IDs dos usuários inscritos
 
 **Limitações Conhecidas:**
 - Sem histórico de cardápios antigos
 - Concorrência pode causar race conditions (mitigado: apenas 1 processo)
-- Sem backup automático (mitigação: Git + deploy com volume persistente)
+- Sem backup automático (mitigação: Git + volume Docker persistente)
 
 **Migração Futura:**
 Se necessário, facilmente migrável para:
@@ -435,30 +461,56 @@ Se necessário, facilmente migrável para:
 
 ---
 
-### 5.2. Deploy (Desenvolvimento Local para MVP)
+### 5.2. Deploy: Docker na Oracle Cloud Free Tier
 
-**Decisão:** Começar com execução local durante desenvolvimento e testes iniciais.
+**Decisão:** Container Docker em VM Oracle Cloud Free Tier (VM.Standard.E2.1.Micro).
 
-**Setup:**
-```bash
-# Processo simples
-python src/main.py
+**Infraestrutura:**
+- **VM:** Oracle Cloud Free Tier — `VM.Standard.E2.1.Micro` (x86)
+- **OS:** Ubuntu 20.04 (focal)
+- **Docker:** Instalado na VM, container `python:3.10-slim`
+- **IP:** `164.152.45.38`
+- **Usuário:** `ubuntu`
+
+**Configuração de Deploy:**
+```yaml
+# docker-compose.yml
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
 ```
 
+**Ciclo de Atualização:**
+```bash
+# Na máquina local, após commit + push
+ssh -i ~/Downloads/ssh-key-2026-03-15.key ubuntu@164.152.45.38
+cd ru-ufca-bot
+git pull
+docker compose up -d --build
+docker compose logs -f
+```
+
+**Variáveis de Ambiente em Produção:**
+- `TELEGRAM_BOT_TOKEN` — Token do bot
+- `ADMIN_CHAT_ID` — ID do admin
+- `ENVIRONMENT=production`
+- `TIMEZONE=America/Fortaleza`
+- `LUNCH_NOTIFICATION_TIME=10:30`
+- `DINNER_NOTIFICATION_TIME=16:30`
+
 **Monitoramento:**
-- Logs em stdout/stderr
-- Arquivo de log rotativo (futuro)
+- `docker compose logs --tail=50` para ver logs
+- Container com `restart: unless-stopped` reinicia automaticamente
+- Volume `./data:/app/data` persiste cache entre rebuilds
 
-**Considerações Futuras:**
-- **Opção 1 - Cloud Gratuito:** Railway, Render (tier gratuito)
-- **Opção 2 - VPS:** DigitalOcean Droplet ($5/mês)
-- **Opção 3 - Serverless:** AWS Lambda + CloudWatch (complexo para agendamento)
-
-**Recomendação:** Railway ou Render quando sair de desenvolvimento
-- Deploy via Git push
-- Logs centralizados
-- Reinício automático em caso de crash
-- Variáveis de ambiente seguras
+**Nota Técnica:**
+- Ubuntu 20.04 tem Python 3.8.10 (incompatível com python-telegram-bot 22.6)
+- Solução: Docker com imagem oficial `python:3.10-slim` elimina o problema de versão
 
 ---
 
@@ -600,6 +652,12 @@ ADMIN_IDS = [123456789]  # Seu chat_id
 
 ### 8.1. Estratégia de Testes
 
+**Status atual (15/03/2026):**
+- **66/66 testes passando**
+- **Cobertura:** 90%
+
+### 8.2. Testes Futuros
+
 **Prioridades para MVP:**
 
 1. **Testes Unitários:**
@@ -637,24 +695,26 @@ ADMIN_IDS = [123456789]  # Seu chat_id
 
 ## 9. Dependências do Projeto
 
-### 9.1. Requirements.txt (Estimado)
+### 9.1. Requirements.txt (Produção)
 
 ```
-python-telegram-bot[job-queue]==20.7
+python-telegram-bot[job-queue]==22.6
 pdfplumber==0.10.3
 APScheduler==3.10.4
 python-dotenv==1.0.0
 pytz==2024.1
+```
 
-# Dev dependencies
+### 9.2. Requirements-dev.txt
+
+```
 pytest==7.4.3
 pytest-asyncio==0.21.1
-black==23.12.1
-flake8==6.1.0
+pytest-cov==4.1.0
 ```
 
 **Justificativas:**
-- `python-telegram-bot[job-queue]`: Extra para APScheduler integration
+- `python-telegram-bot[job-queue]==22.6`: Versão que suporta Python 3.10+; job-queue para APScheduler
 - `pdfplumber`: Parsing de PDFs
 - `APScheduler`: Agendamento de tarefas
 - `python-dotenv`: Gerenciamento de .env
@@ -948,6 +1008,11 @@ tests/
 | 2026-03-14 | Criação do documento inicial | Gustavo Alexandre |
 | 2026-03-14 | Adição de seção TDD e metodologia | Gustavo Alexandre |
 | 2026-03-14 | Status mudado para "Em Desenvolvimento" | Gustavo Alexandre |
+| 2026-03-15 | Status mudado para "Em Produção" | Gustavo Alexandre |
+| 2026-03-15 | Adicionada seção de deploy Docker + Oracle Cloud | Gustavo Alexandre |
+| 2026-03-15 | Atualizada versão do python-telegram-bot para 22.6 | Gustavo Alexandre |
+| 2026-03-15 | Atualizada estrutura de diretórios e comandos do bot | Gustavo Alexandre |
+| 2026-03-15 | Simplificados comentários e docstrings (refactor) | Gustavo Alexandre |
 
 ---
 
@@ -956,14 +1021,16 @@ tests/
 1. ✅ Revisar e validar documento de arquitetura
 2. ✅ Obter PDF de exemplo para análise do formato
 3. ✅ Adicionar metodologia TDD ao documento
-4. ⏳ Setup inicial do projeto (estrutura de diretórios e arquivos)
-5. ⏳ Implementar Cache Layer (TDD)
-6. ⏳ Implementar PDF Parser (TDD)
-7. ⏳ Implementar Menu Extractor (TDD)
-8. ⏳ Implementar Bot Handlers (TDD)
-9. ⏳ Implementar Scheduler (TDD)
-10. ⏳ Testes de integração completos
-11. ⏳ Deploy e testes com usuários reais
+4. ✅ Setup inicial do projeto (estrutura de diretórios e arquivos)
+5. ✅ Implementar Cache Layer (TDD)
+6. ✅ Implementar PDF Parser (TDD)
+7. ✅ Implementar Menu Extractor (TDD)
+8. ✅ Implementar Bot Handlers (TDD)
+9. ✅ Implementar Scheduler (TDD)
+10. ✅ Testes de integração completos
+11. ✅ Deploy em produção (Docker + Oracle Cloud)
+12. ⏳ Refatorar comentários e docstrings (concluído)
+13. ⏳ Atualizar documento de arquitetura (concluído)
 
 ---
 
