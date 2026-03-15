@@ -62,8 +62,7 @@ venv.bak/
 *~
 
 # Project specific
-data/menus.json
-data/users.json
+data/
 
 # OS specific
 .DS_Store
