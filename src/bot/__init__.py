@@ -6,6 +6,6 @@ Contém handlers de comandos, formatação de mensagens e scheduler de notifica�
 
 from .handlers import BotHandlers
 from .formatter import MenuFormatter
-# from .scheduler import NotificationScheduler  # TODO: Uncomment when implemented
+from .scheduler import NotificationScheduler
 
-__all__ = ["BotHandlers", "MenuFormatter"]  # TODO: Add NotificationScheduler when implemented
+__all__ = ["BotHandlers", "MenuFormatter", "NotificationScheduler"]
