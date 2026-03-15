@@ -1,4 +1,4 @@
-# RU UFCA Bot
+# Cardápio UFCA
 
 Bot de Telegram para consulta de cardápios do Restaurante Universitário da UFCA.
 
