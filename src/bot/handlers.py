@@ -1,10 +1,185 @@
 """
 Handlers de comandos do bot de Telegram.
 
-Este módulo será implementado seguindo TDD (Test-Driven Development).
-Os testes em tests/test_handlers.py devem ser escritos ANTES desta implementação.
+Responsável por processar comandos dos usuários e interagir com cache e formatter.
 """
 
-# TODO: Implementar após escrever testes em test_handlers.py
-# Classe esperada:
-# - BotHandlers: Handlers para comandos /start, /almoco, /janta, /semana, /parar, /upload
+from datetime import datetime
+from telegram import Update
+from telegram.ext import ContextTypes
+
+
+class BotHandlers:
+    """
+    Handlers para comandos do bot de Telegram.
+    
+    Integra MenuCache, UserManager e MenuFormatter para processar comandos.
+    """
+    
+    def __init__(self, menu_cache, user_manager, formatter):
+        """
+        Inicializa os handlers.
+        
+        Args:
+            menu_cache: Instância de MenuCache para acessar cardápios
+            user_manager: Instância de UserManager para gerenciar inscrições
+            formatter: Instância de MenuFormatter para formatar mensagens
+        """
+        self.cache = menu_cache
+        self.users = user_manager
+        self.formatter = formatter
+    
+    async def _send_meal_for_today(self, update: Update, meal_type: str, meal_key: str):
+        """
+        Método auxiliar para enviar cardápio de uma refeição de hoje.
+        
+        Args:
+            update: Update do Telegram
+            meal_type: Nome legível da refeição (ex: "Almoço", "Jantar")
+            meal_key: Chave do cardápio (ex: "almoco", "janta")
+        """
+        today = datetime.now().strftime("%Y-%m-%d")
+        menu_data = self.cache.get_menu(today)
+        
+        if not menu_data or meal_key not in menu_data:
+            await update.message.reply_text(
+                f"❌ Cardápio do {meal_type.lower()} não disponível para hoje.",
+                parse_mode="Markdown"
+            )
+            return
+        
+        formatted_message = self.formatter.format_meal(menu_data[meal_key], meal_type)
+        await update.message.reply_text(formatted_message, parse_mode="Markdown")
+    
+    async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handler do comando /start.
+        
+        Envia mensagem de boas-vindas e inscreve usuário automaticamente.
+        """
+        user_id = update.effective_user.id
+        user_name = update.effective_user.first_name
+        
+        # Inscrever usuário automaticamente
+        self.users.add_user(user_id)
+        
+        welcome_message = (
+            f"👋 Olá, *{user_name}*!\n\n"
+            "Bem-vindo ao *Bot do RU UFCA*!\n\n"
+            "🔔 Você foi inscrito para receber notificações automáticas dos cardápios.\n\n"
+            "📋 *Comandos disponíveis:*\n"
+            "/almoco - Cardápio do almoço de hoje\n"
+            "/janta - Cardápio da janta de hoje\n"
+            "/semana - Cardápio da semana\n"
+            "/parar - Parar de receber notificações\n"
+            "/help - Ajuda e lista de comandos\n\n"
+            "Bom apetite! 🍽️"
+        )
+        
+        await update.message.reply_text(welcome_message, parse_mode="Markdown")
+    
+    async def almoco_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handler do comando /almoco.
+        
+        Exibe o cardápio do almoço de hoje.
+        """
+        await self._send_meal_for_today(update, "Almoço", "almoco")
+    
+    async def janta_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handler do comando /janta.
+        
+        Exibe o cardápio da janta de hoje.
+        """
+        await self._send_meal_for_today(update, "Jantar", "janta")
+    
+    async def semana_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handler do comando /semana.
+        
+        Exibe o cardápio completo da semana.
+        """
+        weekly_menu = self.cache.get_weekly_menu()
+        
+        if not weekly_menu:
+            await update.message.reply_text(
+                "❌ Cardápio da semana não disponível.",
+                parse_mode="Markdown"
+            )
+            return
+        
+        # Formatar cada dia da semana
+        messages = ["📅 *CARDÁPIO DA SEMANA*\n"]
+        
+        for date_str in sorted(weekly_menu.keys()):
+            formatted_date = self.formatter.format_date(date_str)
+            day_menu = weekly_menu[date_str]
+            
+            messages.append(f"\n{'─' * 30}")
+            messages.append(f"📆 *{formatted_date}*\n")
+            
+            if "almoco" in day_menu:
+                almoco_msg = self.formatter.format_meal(day_menu["almoco"], "Almoço")
+                messages.append(almoco_msg)
+            
+            if "janta" in day_menu:
+                messages.append("")  # Linha em branco
+                janta_msg = self.formatter.format_meal(day_menu["janta"], "Jantar")
+                messages.append(janta_msg)
+        
+        full_message = "\n".join(messages)
+        
+        # Telegram tem limite de 4096 caracteres por mensagem
+        if len(full_message) > 4000:
+            # Dividir mensagem se muito longa
+            await update.message.reply_text(
+                "📅 *CARDÁPIO DA SEMANA*\n\n"
+                "⚠️ Cardápio muito extenso. Use /almoco ou /janta para ver o cardápio de hoje.",
+                parse_mode="Markdown"
+            )
+        else:
+            await update.message.reply_text(full_message, parse_mode="Markdown")
+    
+    async def parar_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handler do comando /parar.
+        
+        Remove usuário das notificações automáticas.
+        """
+        user_id = update.effective_user.id
+        
+        if not self.users.is_subscribed(user_id):
+            await update.message.reply_text(
+                "ℹ️ Você não está inscrito para receber notificações.",
+                parse_mode="Markdown"
+            )
+            return
+        
+        self.users.remove_user(user_id)
+        
+        await update.message.reply_text(
+            "✅ Você foi removido da lista de notificações.\n\n"
+            "Para voltar a receber notificações, use o comando /start",
+            parse_mode="Markdown"
+        )
+    
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handler do comando /help.
+        
+        Lista todos os comandos disponíveis.
+        """
+        help_message = (
+            "📋 *COMANDOS DISPONÍVEIS*\n\n"
+            "/start - Iniciar bot e receber notificações\n"
+            "/almoco - Ver cardápio do almoço de hoje\n"
+            "/janta - Ver cardápio da janta de hoje\n"
+            "/semana - Ver cardápio da semana completa\n"
+            "/parar - Parar de receber notificações\n"
+            "/help - Exibir esta mensagem de ajuda\n\n"
+            "💡 *Dica:* Você receberá notificações automáticas "
+            "nos horários do almoço e janta!"
+        )
+        
+        await update.message.reply_text(help_message, parse_mode="Markdown")
