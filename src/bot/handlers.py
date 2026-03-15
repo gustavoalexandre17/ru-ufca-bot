@@ -4,9 +4,13 @@ Handlers de comandos do bot de Telegram.
 Responsável por processar comandos dos usuários e interagir com cache e formatter.
 """
 
+import os
+import tempfile
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
+
+from src.scraper.menu_extractor import MenuExtractor
 
 
 class BotHandlers:
@@ -183,3 +187,72 @@ class BotHandlers:
         )
         
         await update.message.reply_text(help_message, parse_mode="Markdown")
+
+    async def pdf_upload_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handler para recebimento de PDF com cardápio semanal.
+
+        Apenas o admin (ADMIN_CHAT_ID) pode enviar PDFs. O arquivo é baixado,
+        processado pelo MenuExtractor e os cardápios são salvos no cache.
+        """
+        user_id = update.effective_user.id
+        admin_id = int(os.environ.get("ADMIN_CHAT_ID", "0"))
+
+        # Verificar permissão
+        if user_id != admin_id:
+            await update.message.reply_text(
+                "⛔ Você não tem permissão para enviar cardápios. "
+                "Apenas o admin pode fazer upload de PDFs.",
+                parse_mode="Markdown"
+            )
+            return
+
+        # Verificar se é PDF
+        document = update.message.document
+        is_pdf = (
+            document.file_name.lower().endswith(".pdf")
+            or document.mime_type == "application/pdf"
+        )
+        if not is_pdf:
+            await update.message.reply_text(
+                "❌ Formato inválido. Por favor, envie um arquivo PDF.",
+                parse_mode="Markdown"
+            )
+            return
+
+        await update.message.reply_text("⏳ Processando PDF...", parse_mode="Markdown")
+
+        tmp_path = None
+        try:
+            # Baixar arquivo para um temporário
+            tg_file = await document.get_file()
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp_path = tmp.name
+            await tg_file.download_to_drive(tmp_path)
+
+            # Extrair cardápios
+            extractor = MenuExtractor(tmp_path)
+            weekly_menus = extractor.extract_weekly_menu()
+
+            # Salvar cada dia no cache
+            for date_str, menu_data in weekly_menus.items():
+                self.cache.save_menu(date_str, menu_data)
+
+            await update.message.reply_text(
+                f"✅ PDF processado com sucesso!\n"
+                f"📅 *{len(weekly_menus)} dias* de cardápio salvos no cache.",
+                parse_mode="Markdown"
+            )
+
+        except Exception as e:
+            await update.message.reply_text(
+                f"❌ Erro ao processar o PDF: {e}",
+                parse_mode="Markdown"
+            )
+
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass

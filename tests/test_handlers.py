@@ -270,3 +270,195 @@ class TestBotHandlers:
         # Verificar que parse_mode foi especificado
         call_kwargs = mock_update.message.reply_text.call_args[1]
         assert call_kwargs.get("parse_mode") == "Markdown"
+
+
+class TestPdfUploadHandler:
+    """
+    Testes para o handler de upload de PDF pelo admin.
+
+    Verifica que apenas o admin pode enviar PDFs, que o arquivo é processado
+    corretamente pelo MenuExtractor e que o resultado é salvo no cache.
+    """
+
+    @pytest.fixture
+    def mock_cache(self):
+        return Mock()
+
+    @pytest.fixture
+    def mock_user_manager(self):
+        return Mock()
+
+    @pytest.fixture
+    def mock_formatter(self):
+        return Mock()
+
+    @pytest.fixture
+    def mock_update_admin(self):
+        """Mock de Update enviado pelo admin com um documento PDF."""
+        update = Mock()
+        update.effective_user.id = 999
+        update.message.reply_text = AsyncMock()
+        doc = Mock()
+        doc.file_name = "cardapio.pdf"
+        doc.mime_type = "application/pdf"
+        update.message.document = doc
+        return update
+
+    @pytest.fixture
+    def mock_update_non_admin(self):
+        """Mock de Update enviado por usuário comum."""
+        update = Mock()
+        update.effective_user.id = 12345
+        update.message.reply_text = AsyncMock()
+        doc = Mock()
+        doc.file_name = "cardapio.pdf"
+        doc.mime_type = "application/pdf"
+        update.message.document = doc
+        return update
+
+    @pytest.fixture
+    def mock_context(self):
+        return Mock()
+
+    @pytest.mark.asyncio
+    async def test_pdf_upload_rejected_for_non_admin(
+        self, mock_cache, mock_user_manager, mock_formatter,
+        mock_update_non_admin, mock_context
+    ):
+        """
+        Teste: Upload de PDF deve ser rejeitado para usuários não-admin.
+
+        Arrange: ADMIN_CHAT_ID=999, usuário com id=12345
+        Act: Chamar pdf_upload_handler
+        Assert: reply_text com mensagem de acesso negado, cache não alterado
+        """
+        from src.bot.handlers import BotHandlers
+
+        handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
+        with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
+            await handlers.pdf_upload_handler(mock_update_non_admin, mock_context)
+
+        mock_update_non_admin.message.reply_text.assert_called_once()
+        call_args = mock_update_non_admin.message.reply_text.call_args[0][0]
+        assert "permissão" in call_args.lower() or "acesso" in call_args.lower() or "admin" in call_args.lower()
+        mock_cache.save_menu.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_pdf_upload_rejected_if_not_pdf(
+        self, mock_cache, mock_user_manager, mock_formatter,
+        mock_update_admin, mock_context
+    ):
+        """
+        Teste: Upload deve ser rejeitado se o arquivo não for PDF.
+
+        Arrange: Admin envia arquivo .txt
+        Act: Chamar pdf_upload_handler
+        Assert: reply_text com mensagem de formato inválido
+        """
+        from src.bot.handlers import BotHandlers
+
+        mock_update_admin.message.document.file_name = "arquivo.txt"
+        mock_update_admin.message.document.mime_type = "text/plain"
+
+        handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
+        with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
+            await handlers.pdf_upload_handler(mock_update_admin, mock_context)
+
+        call_args = mock_update_admin.message.reply_text.call_args[0][0]
+        assert "pdf" in call_args.lower()
+        mock_cache.save_menu.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_pdf_upload_processes_and_saves_menu(
+        self, mock_cache, mock_user_manager, mock_formatter,
+        mock_update_admin, mock_context
+    ):
+        """
+        Teste: Upload de PDF válido pelo admin deve processar e salvar cardápios.
+
+        Arrange: Admin envia PDF válido, MenuExtractor retorna cardápios para 3 datas
+        Act: Chamar pdf_upload_handler
+        Assert: cache.save_menu chamado para cada data extraída
+        """
+        from src.bot.handlers import BotHandlers
+
+        weekly_menus = {
+            "2026-03-09": {"almoco": {"prato_principal": "Frango"}, "janta": {}},
+            "2026-03-10": {"almoco": {"prato_principal": "Peixe"}, "janta": {}},
+            "2026-03-11": {"almoco": {"prato_principal": "Carne"}, "janta": {}},
+        }
+
+        mock_file = AsyncMock()
+        mock_file.download_to_drive = AsyncMock()
+        mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
+
+        with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+            mock_extractor_cls.return_value.extract_weekly_menu.return_value = weekly_menus
+
+            handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
+            with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
+                await handlers.pdf_upload_handler(mock_update_admin, mock_context)
+
+        assert mock_cache.save_menu.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_pdf_upload_replies_with_success_message(
+        self, mock_cache, mock_user_manager, mock_formatter,
+        mock_update_admin, mock_context
+    ):
+        """
+        Teste: Upload bem-sucedido deve responder com confirmação.
+
+        Arrange: Admin envia PDF válido, extração retorna 5 datas
+        Act: Chamar pdf_upload_handler
+        Assert: reply_text contém quantidade de datas salvas
+        """
+        from src.bot.handlers import BotHandlers
+
+        weekly_menus = {f"2026-03-{9+i:02d}": {"almoco": {}, "janta": {}} for i in range(5)}
+
+        mock_file = AsyncMock()
+        mock_file.download_to_drive = AsyncMock()
+        mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
+
+        with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+            mock_extractor_cls.return_value.extract_weekly_menu.return_value = weekly_menus
+
+            handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
+            with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
+                await handlers.pdf_upload_handler(mock_update_admin, mock_context)
+
+        # Última chamada ao reply_text deve ser a confirmação final
+        calls = mock_update_admin.message.reply_text.call_args_list
+        success_call = calls[-1][0][0]
+        assert "5" in success_call
+
+    @pytest.mark.asyncio
+    async def test_pdf_upload_replies_with_error_on_extraction_failure(
+        self, mock_cache, mock_user_manager, mock_formatter,
+        mock_update_admin, mock_context
+    ):
+        """
+        Teste: Falha na extração deve responder com mensagem de erro.
+
+        Arrange: MenuExtractor lança exceção
+        Act: Chamar pdf_upload_handler
+        Assert: reply_text com mensagem de erro, cache não alterado
+        """
+        from src.bot.handlers import BotHandlers
+
+        mock_file = AsyncMock()
+        mock_file.download_to_drive = AsyncMock()
+        mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
+
+        with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+            mock_extractor_cls.return_value.extract_weekly_menu.side_effect = Exception("PDF corrompido")
+
+            handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
+            with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
+                await handlers.pdf_upload_handler(mock_update_admin, mock_context)
+
+        calls = mock_update_admin.message.reply_text.call_args_list
+        error_call = calls[-1][0][0]
+        assert "erro" in error_call.lower() or "falha" in error_call.lower()
+        mock_cache.save_menu.assert_not_called()
