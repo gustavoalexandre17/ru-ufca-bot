@@ -90,6 +90,61 @@ class TestMenuCache:
         
         assert result is None
 
+    def test_get_weekly_menu_returns_only_current_week(self, cache_file, sample_menu_data):
+        """
+        Teste: get_weekly_menu deve retornar apenas dias da semana corrente.
+
+        Arrange: Cache com dias da semana atual e de semanas anteriores
+        Act: Chamar get_weekly_menu
+        Assert: Apenas dias da semana atual são retornados
+        """
+        from src.cache.menu_cache import MenuCache
+        from datetime import date, timedelta
+
+        cache = MenuCache(cache_file)
+
+        # Descobrir segunda-feira da semana atual
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+
+        # Salvar 3 dias da semana atual
+        for i in range(3):
+            d = (monday + timedelta(days=i)).isoformat()
+            cache.save_menu(d, sample_menu_data)
+
+        # Salvar 1 dia de semana passada
+        last_week = (monday - timedelta(days=3)).isoformat()
+        cache.save_menu(last_week, sample_menu_data)
+
+        result = cache.get_weekly_menu()
+
+        assert len(result) == 3
+        assert last_week not in result
+        for i in range(3):
+            assert (monday + timedelta(days=i)).isoformat() in result
+
+    def test_get_weekly_menu_returns_empty_when_no_data_for_current_week(self, cache_file, sample_menu_data):
+        """
+        Teste: get_weekly_menu deve retornar {} se não há dados da semana atual.
+
+        Arrange: Cache com dados apenas de semana passada
+        Act: Chamar get_weekly_menu
+        Assert: Retorna dicionário vazio
+        """
+        from src.cache.menu_cache import MenuCache
+        from datetime import date, timedelta
+
+        cache = MenuCache(cache_file)
+
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        last_week_day = (monday - timedelta(days=3)).isoformat()
+        cache.save_menu(last_week_day, sample_menu_data)
+
+        result = cache.get_weekly_menu()
+
+        assert result == {}
+
 
 class TestUserManager:
     """

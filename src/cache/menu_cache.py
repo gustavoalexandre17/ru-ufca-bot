@@ -6,6 +6,7 @@ Testes definidos em tests/test_menu_cache.py.
 """
 
 import json
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
 
@@ -76,6 +77,22 @@ class MenuCache:
             Dados do cardápio ou None se não encontrado
         """
         return self._data.get(menu_date)
+
+    def get_weekly_menu(self) -> Dict[str, Any]:
+        """
+        Retorna os cardápios da semana corrente (segunda a domingo).
+
+        Returns:
+            Dicionário com as datas da semana atual que existem no cache.
+            Pode ser vazio se nenhum cardápio da semana foi carregado ainda.
+        """
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        week_dates = {
+            (monday + timedelta(days=i)).isoformat()
+            for i in range(7)
+        }
+        return {d: v for d, v in self._data.items() if d in week_dates}
 
 
 class UserManager:
