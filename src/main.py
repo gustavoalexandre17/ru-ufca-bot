@@ -48,8 +48,8 @@ def create_bot() -> Application:
         raise ValueError("TELEGRAM_BOT_TOKEN não configurado nas variáveis de ambiente")
 
     # Instanciar componentes
-    cache = MenuCache()
-    users = UserManager()
+    cache = MenuCache("data/menu_cache.json")
+    users = UserManager("data/users.json")
     formatter = MenuFormatter()
     handlers = BotHandlers(cache, users, formatter)
 
