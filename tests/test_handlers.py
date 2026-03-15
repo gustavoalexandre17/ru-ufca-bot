@@ -393,7 +393,7 @@ class TestPdfUploadHandler:
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
         with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
-            mock_extractor_cls.return_value.extract_weekly_menu.return_value = weekly_menus
+            mock_extractor_cls.return_value.extract_menus.return_value = weekly_menus
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
             with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
@@ -422,7 +422,7 @@ class TestPdfUploadHandler:
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
         with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
-            mock_extractor_cls.return_value.extract_weekly_menu.return_value = weekly_menus
+            mock_extractor_cls.return_value.extract_menus.return_value = weekly_menus
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
             with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
@@ -452,7 +452,7 @@ class TestPdfUploadHandler:
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
         with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
-            mock_extractor_cls.return_value.extract_weekly_menu.side_effect = Exception("PDF corrompido")
+            mock_extractor_cls.return_value.extract_menus.side_effect = Exception("PDF corrompido")
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
             with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):

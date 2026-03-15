@@ -232,7 +232,7 @@ class BotHandlers:
 
             # Extrair cardápios
             extractor = MenuExtractor(tmp_path)
-            weekly_menus = extractor.extract_weekly_menu()
+            weekly_menus = extractor.extract_menus()
 
             # Salvar cada dia no cache
             for date_str, menu_data in weekly_menus.items():
