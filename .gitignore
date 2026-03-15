@@ -71,3 +71,8 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Documentos de desenvolvimento (internos)
+SETUP_SUMMARY.md
+ENVIRONMENT_SETUP.md
+*.pdf
