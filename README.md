@@ -2,6 +2,8 @@
 
 Bot de Telegram para consulta de cardápios do Restaurante Universitário da UFCA.
 
+> 💡 **Acesse o bot em produção:** [https://t.me/ru_ufca_bot](https://t.me/ru_ufca_bot)
+
 ## 📋 Sobre o Projeto
 
 Este bot permite que estudantes da UFCA consultem o cardápio do RU de forma rápida e prática, além de receber notificações automáticas nos horários das refeições.
