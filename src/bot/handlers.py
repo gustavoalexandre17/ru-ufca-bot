@@ -1,8 +1,4 @@
-"""
-Handlers de comandos do bot de Telegram.
-
-Responsável por processar comandos dos usuários e interagir com cache e formatter.
-"""
+"""Handlers dos comandos do bot."""
 
 import os
 import tempfile
@@ -14,34 +10,15 @@ from src.scraper.menu_extractor import MenuExtractor
 
 
 class BotHandlers:
-    """
-    Handlers para comandos do bot de Telegram.
-    
-    Integra MenuCache, UserManager e MenuFormatter para processar comandos.
-    """
+    """Processa comandos do Telegram, integrando cache, usuários e formatador."""
     
     def __init__(self, menu_cache, user_manager, formatter):
-        """
-        Inicializa os handlers.
-        
-        Args:
-            menu_cache: Instância de MenuCache para acessar cardápios
-            user_manager: Instância de UserManager para gerenciar inscrições
-            formatter: Instância de MenuFormatter para formatar mensagens
-        """
         self.cache = menu_cache
         self.users = user_manager
         self.formatter = formatter
     
     async def _send_meal_for_today(self, update: Update, meal_type: str, meal_key: str):
-        """
-        Método auxiliar para enviar cardápio de uma refeição de hoje.
-        
-        Args:
-            update: Update do Telegram
-            meal_type: Nome legível da refeição (ex: "Almoço", "Jantar")
-            meal_key: Chave do cardápio (ex: "almoco", "janta")
-        """
+        """Busca o cardápio de hoje no cache e responde ao usuário."""
         today = datetime.now().strftime("%Y-%m-%d")
         menu_data = self.cache.get_menu(today)
         
@@ -56,15 +33,10 @@ class BotHandlers:
         await update.message.reply_text(formatted_message, parse_mode="Markdown")
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """
-        Handler do comando /start.
-        
-        Envia mensagem de boas-vindas e inscreve usuário automaticamente.
-        """
+        """Inscreve o usuário e envia boas-vindas."""
         user_id = update.effective_user.id
         user_name = update.effective_user.first_name
         
-        # Inscrever usuário automaticamente
         self.users.add_user(user_id)
         
         welcome_message = (
@@ -83,27 +55,15 @@ class BotHandlers:
         await update.message.reply_text(welcome_message, parse_mode="Markdown")
     
     async def almoco_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """
-        Handler do comando /almoco.
-        
-        Exibe o cardápio do almoço de hoje.
-        """
+        """Mostra o cardápio do almoço de hoje."""
         await self._send_meal_for_today(update, "Almoço", "almoco")
     
     async def janta_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """
-        Handler do comando /janta.
-        
-        Exibe o cardápio da janta de hoje.
-        """
+        """Mostra o cardápio da janta de hoje."""
         await self._send_meal_for_today(update, "Jantar", "janta")
     
     async def semana_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """
-        Handler do comando /semana.
-        
-        Exibe o cardápio completo da semana.
-        """
+        """Mostra o cardápio completo da semana."""
         weekly_menu = self.cache.get_weekly_menu()
         
         if not weekly_menu:
@@ -113,7 +73,6 @@ class BotHandlers:
             )
             return
         
-        # Formatar cada dia da semana
         messages = ["📅 *CARDÁPIO DA SEMANA*\n"]
         
         for date_str in sorted(weekly_menu.keys()):
@@ -124,19 +83,16 @@ class BotHandlers:
             messages.append(f"📆 *{formatted_date}*\n")
             
             if "almoco" in day_menu:
-                almoco_msg = self.formatter.format_meal(day_menu["almoco"], "Almoço")
-                messages.append(almoco_msg)
+                messages.append(self.formatter.format_meal(day_menu["almoco"], "Almoço"))
             
             if "janta" in day_menu:
-                messages.append("")  # Linha em branco
-                janta_msg = self.formatter.format_meal(day_menu["janta"], "Jantar")
-                messages.append(janta_msg)
+                messages.append("")
+                messages.append(self.formatter.format_meal(day_menu["janta"], "Jantar"))
         
         full_message = "\n".join(messages)
         
-        # Telegram tem limite de 4096 caracteres por mensagem
+        # Telegram limita mensagens a 4096 caracteres
         if len(full_message) > 4000:
-            # Dividir mensagem se muito longa
             await update.message.reply_text(
                 "📅 *CARDÁPIO DA SEMANA*\n\n"
                 "⚠️ Cardápio muito extenso. Use /almoco ou /janta para ver o cardápio de hoje.",
@@ -146,11 +102,7 @@ class BotHandlers:
             await update.message.reply_text(full_message, parse_mode="Markdown")
     
     async def parar_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """
-        Handler do comando /parar.
-        
-        Remove usuário das notificações automáticas.
-        """
+        """Remove o usuário das notificações."""
         user_id = update.effective_user.id
         
         if not self.users.is_subscribed(user_id):
@@ -169,11 +121,7 @@ class BotHandlers:
         )
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """
-        Handler do comando /help.
-        
-        Lista todos os comandos disponíveis.
-        """
+        """Lista todos os comandos disponíveis."""
         help_message = (
             "📋 *COMANDOS DISPONÍVEIS*\n\n"
             "/start - Iniciar bot e receber notificações\n"
@@ -190,15 +138,14 @@ class BotHandlers:
 
     async def pdf_upload_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
-        Handler para recebimento de PDF com cardápio semanal.
+        Recebe um PDF de cardápio enviado pelo admin e salva no cache.
 
-        Apenas o admin (ADMIN_CHAT_ID) pode enviar PDFs. O arquivo é baixado,
-        processado pelo MenuExtractor e os cardápios são salvos no cache.
+        Só o admin (ADMIN_CHAT_ID) pode usar. O arquivo é baixado,
+        processado pelo MenuExtractor e descartado em seguida.
         """
         user_id = update.effective_user.id
         admin_id = int(os.environ.get("ADMIN_CHAT_ID", "0"))
 
-        # Verificar permissão
         if user_id != admin_id:
             await update.message.reply_text(
                 "⛔ Você não tem permissão para enviar cardápios. "
@@ -207,7 +154,6 @@ class BotHandlers:
             )
             return
 
-        # Verificar se é PDF
         document = update.message.document
         is_pdf = (
             document.file_name.lower().endswith(".pdf")
@@ -224,17 +170,14 @@ class BotHandlers:
 
         tmp_path = None
         try:
-            # Baixar arquivo para um temporário
             tg_file = await document.get_file()
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp_path = tmp.name
             await tg_file.download_to_drive(tmp_path)
 
-            # Extrair cardápios
             extractor = MenuExtractor(tmp_path)
             weekly_menus = extractor.extract_menus()
 
-            # Salvar cada dia no cache
             for date_str, menu_data in weekly_menus.items():
                 self.cache.save_menu(date_str, menu_data)
 

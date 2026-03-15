@@ -1,13 +1,4 @@
-"""
-Entry point da aplicação RU UFCA Bot.
-
-Responsabilidades:
-- Carregar configurações do ambiente (.env)
-- Instanciar e conectar todos os módulos
-- Registrar handlers no bot do Telegram
-- Configurar APScheduler com os horários de notificação
-- Iniciar o polling do bot
-"""
+"""Entry point do RU UFCA Bot."""
 
 import os
 import logging
@@ -31,35 +22,21 @@ logger = logging.getLogger(__name__)
 
 
 def create_bot() -> Application:
-    """
-    Monta e configura a aplicação do bot.
-
-    Instancia todos os componentes, registra os handlers de comandos
-    e retorna a Application pronta para executar.
-
-    Returns:
-        Application: Aplicação configurada do python-telegram-bot
-
-    Raises:
-        ValueError: Se TELEGRAM_BOT_TOKEN não estiver definido no ambiente
-    """
+    """Monta a aplicação: instancia componentes, registra handlers e retorna pronto pra rodar."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN não configurado nas variáveis de ambiente")
 
-    # Instanciar componentes
     cache = MenuCache("data/menu_cache.json")
     users = UserManager("data/users.json")
     formatter = MenuFormatter()
     handlers = BotHandlers(cache, users, formatter)
 
-    # Criar aplicação com job_queue habilitado
     app = Application.builder().token(token).build()
 
-    # Instanciar scheduler (precisa do bot da aplicação)
+    # Scheduler precisa do bot da aplicação
     scheduler = NotificationScheduler(app.bot, cache, users, formatter)
 
-    # Registrar handlers de comandos
     app.add_handler(CommandHandler("start", handlers.start_command))
     app.add_handler(CommandHandler("almoco", handlers.almoco_command))
     app.add_handler(CommandHandler("janta", handlers.janta_command))
@@ -68,7 +45,6 @@ def create_bot() -> Application:
     app.add_handler(CommandHandler("help", handlers.help_command))
     app.add_handler(MessageHandler(filters.Document.PDF, handlers.pdf_upload_handler))
 
-    # Configurar jobs agendados
     setup_scheduler(app, scheduler)
 
     logger.info("Bot configurado com sucesso.")
@@ -76,13 +52,7 @@ def create_bot() -> Application:
 
 
 def setup_scheduler(app: Application, scheduler: NotificationScheduler) -> None:
-    """
-    Configura os jobs periódicos de notificação no job_queue da aplicação.
-
-    Args:
-        app: Application do python-telegram-bot
-        scheduler: Instância de NotificationScheduler
-    """
+    """Registra os jobs diários de notificação no job_queue."""
     tz_name = os.environ.get("TIMEZONE", "America/Fortaleza")
     lunch_time_str = os.environ.get("LUNCH_NOTIFICATION_TIME", "10:30")
     dinner_time_str = os.environ.get("DINNER_NOTIFICATION_TIME", "16:30")
@@ -90,14 +60,12 @@ def setup_scheduler(app: Application, scheduler: NotificationScheduler) -> None:
     lunch_h, lunch_m = map(int, lunch_time_str.split(":"))
     dinner_h, dinner_m = map(int, dinner_time_str.split(":"))
 
-    # Job diário para notificação do almoço
     app.job_queue.run_daily(
         callback=lambda ctx: scheduler.send_lunch_notification(),
         time=time(lunch_h, lunch_m, tzinfo=_get_timezone(tz_name)),
         name="lunch_notification",
     )
 
-    # Job diário para notificação da janta
     app.job_queue.run_daily(
         callback=lambda ctx: scheduler.send_dinner_notification(),
         time=time(dinner_h, dinner_m, tzinfo=_get_timezone(tz_name)),
@@ -110,15 +78,7 @@ def setup_scheduler(app: Application, scheduler: NotificationScheduler) -> None:
 
 
 def _get_timezone(tz_name: str):
-    """
-    Retorna objeto de timezone a partir do nome.
-
-    Args:
-        tz_name: Nome do timezone (ex: 'America/Fortaleza')
-
-    Returns:
-        tzinfo compatível com datetime.time
-    """
+    """Resolve o nome do timezone; cai pra UTC se não encontrar."""
     try:
         import zoneinfo
         return zoneinfo.ZoneInfo(tz_name)
@@ -129,9 +89,7 @@ def _get_timezone(tz_name: str):
 
 
 def main() -> None:
-    """
-    Ponto de entrada principal. Inicia o bot em modo polling.
-    """
+    """Inicia o bot em modo polling."""
     logger.info("Iniciando RU UFCA Bot...")
     app = create_bot()
     app.run_polling(drop_pending_updates=True)
