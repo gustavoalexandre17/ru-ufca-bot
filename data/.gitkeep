@@ -1,0 +1,3 @@
+# Mantém o diretório data/ no git mas ignora os arquivos JSON
+*
+!.gitkeep
