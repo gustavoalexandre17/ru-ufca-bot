@@ -376,7 +376,7 @@ class TestPdfUploadHandler:
         """
         Teste: Upload de PDF válido pelo admin deve processar e salvar cardápios.
 
-        Arrange: Admin envia PDF válido, MenuExtractor retorna cardápios para 3 datas
+        Arrange: Admin envia PDF válido, TableMenuExtractor retorna cardápios para 3 datas
         Act: Chamar pdf_upload_handler
         Assert: cache.save_menu chamado para cada data extraída
         """
@@ -393,9 +393,9 @@ class TestPdfUploadHandler:
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
         with patch("src.bot.handlers.PDFParser") as mock_parser_cls, \
-             patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
-            mock_parser_cls.return_value.extract_text.return_value = "mock pdf text"
-            mock_extractor_cls.return_value.extract_menus.return_value = weekly_menus
+             patch("src.bot.handlers.TableMenuExtractor") as mock_table_extractor_cls:
+            mock_parser_cls.return_value.extract_tables.return_value = [["mock", "table"]]
+            mock_table_extractor_cls.return_value.extract_menus.return_value = weekly_menus
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
             with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
@@ -424,9 +424,9 @@ class TestPdfUploadHandler:
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
         with patch("src.bot.handlers.PDFParser") as mock_parser_cls, \
-             patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
-            mock_parser_cls.return_value.extract_text.return_value = "mock pdf text"
-            mock_extractor_cls.return_value.extract_menus.return_value = weekly_menus
+             patch("src.bot.handlers.TableMenuExtractor") as mock_table_extractor_cls:
+            mock_parser_cls.return_value.extract_tables.return_value = [["mock", "table"]]
+            mock_table_extractor_cls.return_value.extract_menus.return_value = weekly_menus
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
             with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):
@@ -445,7 +445,7 @@ class TestPdfUploadHandler:
         """
         Teste: Falha na extração deve responder com mensagem de erro.
 
-        Arrange: MenuExtractor lança exceção
+        Arrange: TableMenuExtractor lança exceção
         Act: Chamar pdf_upload_handler
         Assert: reply_text com mensagem de erro, cache não alterado
         """
@@ -456,9 +456,9 @@ class TestPdfUploadHandler:
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
         with patch("src.bot.handlers.PDFParser") as mock_parser_cls, \
-             patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
-            mock_parser_cls.return_value.extract_text.return_value = "mock pdf text"
-            mock_extractor_cls.return_value.extract_menus.side_effect = Exception("PDF corrompido")
+             patch("src.bot.handlers.TableMenuExtractor") as mock_table_extractor_cls:
+            mock_parser_cls.return_value.extract_tables.return_value = [["mock", "table"]]
+            mock_table_extractor_cls.return_value.extract_menus.side_effect = Exception("PDF corrompido")
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
             with patch.dict("os.environ", {"ADMIN_CHAT_ID": "999"}):

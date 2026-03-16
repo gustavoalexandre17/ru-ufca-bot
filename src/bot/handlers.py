@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes
 
 from src.scraper.menu_extractor import MenuExtractor
 from src.scraper.pdf_parser import PDFParser
+from src.scraper.table_menu_extractor import TableMenuExtractor
 
 
 class BotHandlers:
@@ -179,11 +180,19 @@ class BotHandlers:
                 tmp_path = tmp.name
             await tg_file.download_to_drive(tmp_path)
 
+            # Extrair tabelas do PDF (método preferido)
             parser = PDFParser(tmp_path)
-            text = parser.extract_text()
+            tables = parser.extract_tables()
             
-            extractor = MenuExtractor(text)
-            weekly_menus = extractor.extract_menus()
+            if tables:
+                # Usar extração baseada em tabelas (mais precisa)
+                extractor = TableMenuExtractor(tables)
+                weekly_menus = extractor.extract_menus()
+            else:
+                # Fallback: usar extração por texto
+                text = parser.extract_text()
+                text_extractor = MenuExtractor(text)
+                weekly_menus = text_extractor.extract_menus()
 
             for date_str, menu_data in weekly_menus.items():
                 self.cache.save_menu(date_str, menu_data)

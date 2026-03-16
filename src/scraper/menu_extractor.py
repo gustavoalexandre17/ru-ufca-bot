@@ -1,7 +1,7 @@
 """Extrai e estrutura cardápios a partir do texto do PDF."""
 
 import re
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 
 
@@ -59,19 +59,18 @@ class MenuExtractor:
     
     def _extract_meal_section(self, meal_type: str, date_str: str) -> Dict[str, Any]:
         """
-        Extrai os campos de uma refeição (almoço ou jantar) do texto usando a primeira palavra de cada coluna.
+        Extrai os campos de uma refeição (almoço ou jantar) usando detecção de colunas.
         
-        LIMITAÇÃO: O PDF não possui delimitadores fixos entre colunas, então este método
-        extrai apenas palavras parciais (ex: "COZIDO" ao invés de "COZIDO NORDESTINO").
-        Para extrair valores completos seria necessário usar OCR com coordenadas ou
-        um parser PDF mais sofisticado com análise de layout.
+        O PDF tem layout tabular onde cada dia da semana ocupa uma coluna vertical.
+        Detectamos as colunas pela posição dos cabeçalhos de data (16/mar, 17/mar, etc.)
+        e extraímos o texto de cada categoria dentro dos limites da coluna específica.
         
         Args:
             meal_type: "ALMOÇO" ou "JANTAR"
             date_str: Data no formato "16/mar"
         
         Returns:
-            Dicionário com as categorias do cardápio (valores podem ser parciais)
+            Dicionário com as categorias do cardápio
         """
         meal_data = {
             "prato_principal": "",
@@ -84,6 +83,7 @@ class MenuExtractor:
         
         lines = self.text.split('\n')
         
+        # 1. Encontrar início da seção (ALMOÇO ou JANTAR)
         meal_start = None
         for i, line in enumerate(lines):
             if meal_type.upper() in line.upper():
@@ -93,64 +93,124 @@ class MenuExtractor:
         if meal_start is None:
             return meal_data
         
-        date_line_idx = None
-        for i in range(max(0, meal_start - 3), min(len(lines), meal_start + 3)):
-            if date_str in lines[i]:
-                date_line_idx = i
+        # 2. Detectar colunas pela posição das datas nos cabeçalhos
+        date_line = None
+        for i in range(max(0, meal_start - 5), meal_start + 5):
+            if i < len(lines) and date_str in lines[i]:
+                date_line = lines[i]
                 break
         
-        if date_line_idx is None:
+        if not date_line:
             return meal_data
         
+        # Encontrar posição inicial da coluna da data
+        col_start = date_line.find(date_str)
+        if col_start == -1:
+            return meal_data
+        
+        # Estimar largura da coluna (distância até próxima data ou fim da linha)
+        col_end = len(date_line)
         dates = self.extract_dates()
-        col_idx = 0
-        for i, d in enumerate(dates[:5]):
-            if d == date_str:
-                col_idx = i
-                break
         
-        categories = [
-            ('Principal', 'prato_principal'),
-            ('Vegetariano', 'vegetariano'),
-            ('Saladas', 'saladas'),
-            ('Guarnição', 'acompanhamentos'),
-            ('Acompanhamento', 'acompanhamentos'),
-            ('Suco', 'suco'),
-            ('Sobremesa', 'sobremesa')
-        ]
+        try:
+            current_idx = dates.index(date_str)
+            if current_idx + 1 < len(dates):
+                next_date = dates[current_idx + 1]
+                next_pos = date_line.find(next_date)
+                if next_pos > col_start:
+                    col_end = next_pos
+        except ValueError:
+            pass
         
-        for category_name, data_key in categories:
+        # 3. Mapear labels de categorias para suas posições de linha
+        labels: Dict[str, Optional[int]] = {
+            'Principal': None,
+            'Vegetariano': None,
+            'Saladas': None,
+            'Guarnição': None,
+            'Acompanhamento': None,
+            'Suco': None,
+            'Sobremesa': None
+        }
+        
+        for label in labels:
             for i in range(meal_start, min(meal_start + 50, len(lines))):
+                if i < len(lines) and label in lines[i]:
+                    labels[label] = i
+                    break
+        
+        # 4. Função para extrair texto de uma categoria dentro da coluna específica
+        def extract_category_text(start_label: str) -> str:
+            """Extrai texto da categoria dentro dos limites da coluna."""
+            label_idx = labels.get(start_label)
+            if label_idx is None:
+                return ""
+            
+            start_idx: int = label_idx
+            
+            # Encontrar próximo label para definir fim da categoria
+            label_order = ['Principal', 'Vegetariano', 'Saladas', 'Guarnição', 
+                          'Acompanhamento', 'Suco', 'Sobremesa']
+            current_pos = label_order.index(start_label) if start_label in label_order else -1
+            
+            end_idx: Optional[int] = None
+            for next_label in label_order[current_pos + 1:]:
+                next_idx = labels.get(next_label)
+                if next_idx is not None:
+                    end_idx = next_idx
+                    break
+            
+            if end_idx is None:
+                end_idx = min(start_idx + 10, len(lines))
+            
+            # Extrair texto das linhas dentro da coluna
+            words = []
+            for i in range(start_idx, end_idx):
+                if i >= len(lines):
+                    break
+                
                 line = lines[i]
                 
-                if category_name in line:
-                    words = line.split()
+                # Se a linha tem tamanho suficiente, extrair a parte da coluna
+                if len(line) > col_start:
+                    # Pegar o segmento da linha correspondente à coluna
+                    segment = line[col_start:min(col_end, len(line))]
                     
-                    category_idx = None
-                    for j, word in enumerate(words):
-                        if category_name in word:
-                            category_idx = j
-                            break
+                    # Remover labels desta linha
+                    for label in labels:
+                        segment = segment.replace(label, '')
                     
-                    if category_idx is not None and category_idx + col_idx + 1 < len(words):
-                        value = words[category_idx + col_idx + 1]
-                        
-                        if data_key in ['saladas', 'acompanhamentos']:
-                            meal_data[data_key] = [value] if value else []
-                        else:
-                            meal_data[data_key] = value
-                    elif i > 0:
-                        prev_line = lines[i - 1]
-                        words = prev_line.split()
-                        
-                        if col_idx < len(words):
-                            value = words[col_idx]
-                            
-                            if data_key in ['saladas', 'acompanhamentos']:
-                                meal_data[data_key] = [value] if value else []
-                            else:
-                                meal_data[data_key] = value
-                    break
+                    # Adicionar palavras não vazias
+                    segment_words = segment.strip().split()
+                    words.extend(segment_words)
+            
+            return ' '.join(words)
+        
+        # 5. Extrair cada categoria usando detecção de coluna
+        principal_text = extract_category_text('Principal')
+        vegetariano_text = extract_category_text('Vegetariano')
+        saladas_text = extract_category_text('Saladas')
+        guarnição_text = extract_category_text('Guarnição')
+        acomp_text = extract_category_text('Acompanhamento')
+        suco_text = extract_category_text('Suco')
+        sobremesa_text = extract_category_text('Sobremesa')
+        
+        # 6. Popular meal_data com texto completo (não mais fragmentado)
+        meal_data["prato_principal"] = principal_text[:100].strip() if principal_text else "Não disponível"
+        meal_data["vegetariano"] = vegetariano_text[:80].strip() if vegetariano_text else ""
+        
+        # Para acompanhamentos, juntar guarnição + acompanhamento
+        guarnição_parts = guarnição_text.split()[:5] if guarnição_text else []
+        acomp_parts = acomp_text.split()[:5] if acomp_text else []
+        meal_data["acompanhamentos"] = guarnição_parts + acomp_parts
+        
+        # Saladas como lista de palavras (primeiras 4)
+        saladas_words = saladas_text.split()[:4] if saladas_text else []
+        meal_data["saladas"] = saladas_words
+        
+        # Suco e sobremesa (primeira palavra de cada)
+        meal_data["suco"] = suco_text.split()[0].strip() if suco_text else ""
+        meal_data["sobremesa"] = sobremesa_text.split()[0].strip() if sobremesa_text else ""
         
         return meal_data
     
