@@ -5,6 +5,28 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 
+def sanitize_text(text: str) -> str:
+    """
+    Remove vírgulas extras e espaços desnecessários de um texto.
+
+    - Colapsa sequências de vírgulas (com ou sem espaços entre elas) em uma só
+    - Remove vírgulas no início e no final
+    - Remove espaços nas bordas
+
+    Exemplos:
+        "ACEROLA,"        → "ACEROLA"
+        "ALFACE,, CENOURA" → "ALFACE, CENOURA"
+        "ALFACE, , CENOURA" → "ALFACE, CENOURA"
+    """
+    if not text:
+        return ""
+    # Colapsar vírgulas duplicadas/triplas com espaços opcionais entre elas
+    text = re.sub(r',(\s*,)+', ',', text)
+    # Remover vírgula inicial ou final (com espaços adjacentes)
+    text = text.strip().strip(',').strip()
+    return text
+
+
 class TableMenuExtractor:
     """Extrai cardápios de tabelas do PDF preservando colunas."""
     
@@ -199,23 +221,30 @@ class TableMenuExtractor:
         sobremesa = get_category_text('Sobremesa')
         
         # Popular meal_data
-        meal_data["prato_principal"] = principal[:100].strip() if principal else "Não disponível"
-        meal_data["vegetariano"] = vegetariano[:80].strip() if vegetariano else ""
-        
-        # Acompanhamentos: juntar guarnição + acompanhamento
-        acomp_parts = []
+        meal_data["prato_principal"] = sanitize_text(principal[:100]) if principal else "Não disponível"
+        meal_data["vegetariano"] = sanitize_text(vegetariano[:80]) if vegetariano else ""
+
+        # Acompanhamentos: juntar guarnição + acompanhamento, dividindo por vírgula
+        def _split_by_comma(text: str, limit: int) -> List[str]:
+            """Divide texto por vírgula e sanitiza cada item."""
+            if not text:
+                return []
+            items = [sanitize_text(item) for item in text.split(',')]
+            return [item for item in items if item][:limit]
+
+        acomp_parts: List[str] = []
         if guarnição:
-            acomp_parts.extend(guarnição.split()[:3])
+            acomp_parts.extend(_split_by_comma(guarnição, 3))
         if acompanhamento:
-            acomp_parts.extend(acompanhamento.split()[:3])
+            acomp_parts.extend(_split_by_comma(acompanhamento, 3))
         meal_data["acompanhamentos"] = acomp_parts
-        
-        # Saladas como lista (primeiras 4 palavras)
-        meal_data["saladas"] = saladas.split()[:4] if saladas else []
-        
-        # Suco e sobremesa (primeira palavra)
-        meal_data["suco"] = suco.split()[0].strip() if suco else ""
-        meal_data["sobremesa"] = sobremesa.split()[0].strip() if sobremesa else ""
+
+        # Saladas como lista — dividir por vírgula (preserva itens compostos como "REPOLHO ROXO")
+        meal_data["saladas"] = _split_by_comma(saladas, 4) if saladas else []
+
+        # Suco e sobremesa — sanitizar e pegar apenas o primeiro item se houver vírgula
+        meal_data["suco"] = sanitize_text(suco.split(',')[0]) if suco else ""
+        meal_data["sobremesa"] = sanitize_text(sobremesa.split(',')[0]) if sobremesa else ""
         
         return meal_data
     

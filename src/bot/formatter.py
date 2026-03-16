@@ -82,7 +82,7 @@ class MenuFormatter:
         if "almoco" in menu_data:
             lines.append(self.format_meal(menu_data["almoco"], "Almoço"))
         
-        lines.append("\n" + "─" * 30 + "\n")
+        lines.append("\n" + "─" * 25 + "\n")
         
         if "janta" in menu_data:
             lines.append(self.format_meal(menu_data["janta"], "Jantar"))
