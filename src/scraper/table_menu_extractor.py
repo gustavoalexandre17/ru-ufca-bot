@@ -202,11 +202,14 @@ class TableMenuExtractor:
             for row_idx in range(start_row, min(end_row, len(table))):
                 if row_idx >= len(table):
                     break
-                
+
                 row = table[row_idx]
                 if col_idx < len(row):
                     cell = row[col_idx]
                     if cell and cell.strip():
+                        # Ignorar células que são cabeçalhos de data (ex: "16/mar", "20/mar")
+                        if re.match(r'^\d{1,2}/[a-z]{3}$', cell.strip(), re.I):
+                            continue
                         parts.append(cell.strip())
             
             return ' '.join(parts)

@@ -5,6 +5,8 @@ Seguindo TDD: testes de sanitização e listas limpas devem FALHAR primeiro (RED
 depois implementamos (GREEN).
 """
 
+import re
+
 import pytest
 from src.scraper.table_menu_extractor import TableMenuExtractor
 
@@ -233,3 +235,107 @@ class TestFormatterIntegration:
             if "Suco" in line:
                 assert not line.rstrip().endswith(","), \
                     f"Linha de suco com vírgula: {line!r}"
+
+
+# ---------------------------------------------------------------------------
+# Fixture e testes do bug: data solta capturada na Sobremesa
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def table_with_jantar_date_row():
+    """
+    Tabela que reproduz o bug real: linha de datas do JANTAR aparece entre
+    a Sobremesa do ALMOÇO e a linha 'JANTAR', fazendo a data vazar para
+    o campo sobremesa (ex: 'DOCE 20/mar').
+
+    Estrutura fiel ao PDF do RU-UFCA:
+      ...linhas do ALMOÇO...
+      Sobremesa   | MELANCIA  | MAÇÃ
+      [linha de datas do JANTAR: None | 16/mar | 17/mar]  ← bug aqui
+      JANTAR      | JANTAR    | JANTAR
+      ...linhas do JANTAR...
+    """
+    return [[
+        # linha 0: cabeçalho de datas do ALMOÇO
+        [None,        "16/mar",          "17/mar"],
+        # linha 1: ALMOÇO
+        ["ALMOÇO",    "ALMOÇO",          "ALMOÇO"],
+        # linha 2: Principal
+        ["Principal", "FRANGO GRELHADO", "PEIXE ASSADO"],
+        # linha 3: Suco
+        ["Suco",      "ACEROLA",         "CAJU"],
+        # linha 4: Sobremesa do ALMOÇO
+        ["Sobremesa", "MELANCIA",        "MAÇÃ"],
+        # linha 5: linha de datas do JANTAR (causa do bug — célula col 1 = "16/mar")
+        [None,        "16/mar",          "17/mar"],
+        # linha 6: JANTAR
+        ["JANTAR",    "JANTAR",          "JANTAR"],
+        # linha 7: Principal jantar
+        ["Principal", "CARNE ASSADA",    "FRANGO ACEBOLADO"],
+        # linha 8: Suco jantar
+        ["Suco",      "MANGA",           "GOIABA"],
+        # linha 9: Sobremesa jantar
+        ["Sobremesa", "MELÃO",           "MAMÃO"],
+    ]]
+
+
+class TestDateLeakBug:
+    """
+    Garante que cabeçalhos de data (ex: '16/mar', '20/mar') não vazam
+    para campos de conteúdo como sobremesa e suco.
+    """
+
+    def test_sobremesa_almoco_has_no_date_string(self, table_with_jantar_date_row):
+        """
+        Sobremesa do almoço não deve conter padrão de data (ex: '16/mar').
+
+        Reproduz o bug: 'MELANCIA' não deve virar 'MELANCIA 16/mar'.
+        """
+        extractor = TableMenuExtractor(table_with_jantar_date_row)
+        menus = extractor.extract_menus()
+
+        sobremesa = menus["2026-03-16"]["almoco"]["sobremesa"]
+        assert not re.search(r'\d{1,2}/[a-z]{3}', sobremesa, re.I), \
+            f"Data vazou para sobremesa do almoço: {sobremesa!r}"
+
+    def test_suco_almoco_has_no_date_string(self, table_with_jantar_date_row):
+        """Suco do almoço não deve conter padrão de data."""
+        extractor = TableMenuExtractor(table_with_jantar_date_row)
+        menus = extractor.extract_menus()
+
+        suco = menus["2026-03-16"]["almoco"]["suco"]
+        assert not re.search(r'\d{1,2}/[a-z]{3}', suco, re.I), \
+            f"Data vazou para suco do almoço: {suco!r}"
+
+    def test_sobremesa_almoco_value_is_correct(self, table_with_jantar_date_row):
+        """Sobremesa do almoço deve ser 'MELANCIA', não 'MELANCIA 16/mar'."""
+        extractor = TableMenuExtractor(table_with_jantar_date_row)
+        menus = extractor.extract_menus()
+
+        sobremesa = menus["2026-03-16"]["almoco"]["sobremesa"]
+        assert sobremesa == "MELANCIA", \
+            f"Valor incorreto para sobremesa: {sobremesa!r}"
+
+    def test_sobremesa_jantar_has_no_date_string(self, table_with_jantar_date_row):
+        """Sobremesa do jantar também não deve conter padrão de data."""
+        extractor = TableMenuExtractor(table_with_jantar_date_row)
+        menus = extractor.extract_menus()
+
+        sobremesa = menus["2026-03-16"]["janta"]["sobremesa"]
+        assert not re.search(r'\d{1,2}/[a-z]{3}', sobremesa, re.I), \
+            f"Data vazou para sobremesa do jantar: {sobremesa!r}"
+
+    def test_formatted_output_has_no_date_in_sobremesa(self, table_with_jantar_date_row):
+        """A mensagem formatada final não deve conter data no campo Sobremesa."""
+        from src.bot.formatter import MenuFormatter
+
+        extractor = TableMenuExtractor(table_with_jantar_date_row)
+        menus = extractor.extract_menus()
+
+        formatter = MenuFormatter()
+        output = formatter.format_full_menu(menus["2026-03-16"], "2026-03-16")
+
+        for line in output.splitlines():
+            if "Sobremesa" in line:
+                assert not re.search(r'\d{1,2}/[a-z]{3}', line, re.I), \
+                    f"Data encontrada na linha de Sobremesa: {line!r}"
