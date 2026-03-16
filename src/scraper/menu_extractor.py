@@ -58,7 +58,21 @@ class MenuExtractor:
         return menus
     
     def _extract_meal_section(self, meal_type: str, date_str: str) -> Dict[str, Any]:
-        """Extrai os campos de uma refeição (almoço ou jantar) do texto."""
+        """
+        Extrai os campos de uma refeição (almoço ou jantar) do texto usando a primeira palavra de cada coluna.
+        
+        LIMITAÇÃO: O PDF não possui delimitadores fixos entre colunas, então este método
+        extrai apenas palavras parciais (ex: "COZIDO" ao invés de "COZIDO NORDESTINO").
+        Para extrair valores completos seria necessário usar OCR com coordenadas ou
+        um parser PDF mais sofisticado com análise de layout.
+        
+        Args:
+            meal_type: "ALMOÇO" ou "JANTAR"
+            date_str: Data no formato "16/mar"
+        
+        Returns:
+            Dicionário com as categorias do cardápio (valores podem ser parciais)
+        """
         meal_data = {
             "prato_principal": "",
             "vegetariano": "",
@@ -68,21 +82,75 @@ class MenuExtractor:
             "sobremesa": ""
         }
         
-        meal_pattern = rf'{meal_type}.*?(?={meal_type}|JANTAR|$)'
-        meal_match = re.search(meal_pattern, self.text, re.DOTALL | re.IGNORECASE)
+        lines = self.text.split('\n')
         
-        if meal_match:
-            section = meal_match.group(0)
-            
-            principal_match = re.search(r'Principal\s+(.*?)(?=\n|Vegetariano|$)', section, re.DOTALL)
-            if principal_match:
-                first_line = principal_match.group(1).strip().split('\n')[0].strip()
-                meal_data["prato_principal"] = first_line if first_line else "Não especificado"
-            
-            acomp_match = re.search(r'Acompanhamentos?\s+(.*?)(?=\n\n|Suco|Sobremesa|$)', section, re.DOTALL)
-            if acomp_match:
-                lines = [line.strip() for line in acomp_match.group(1).strip().split('\n') if line.strip()]
-                meal_data["acompanhamentos"] = lines[:3]
+        meal_start = None
+        for i, line in enumerate(lines):
+            if meal_type.upper() in line.upper():
+                meal_start = i
+                break
+        
+        if meal_start is None:
+            return meal_data
+        
+        date_line_idx = None
+        for i in range(max(0, meal_start - 3), min(len(lines), meal_start + 3)):
+            if date_str in lines[i]:
+                date_line_idx = i
+                break
+        
+        if date_line_idx is None:
+            return meal_data
+        
+        dates = self.extract_dates()
+        col_idx = 0
+        for i, d in enumerate(dates[:5]):
+            if d == date_str:
+                col_idx = i
+                break
+        
+        categories = [
+            ('Principal', 'prato_principal'),
+            ('Vegetariano', 'vegetariano'),
+            ('Saladas', 'saladas'),
+            ('Guarnição', 'acompanhamentos'),
+            ('Acompanhamento', 'acompanhamentos'),
+            ('Suco', 'suco'),
+            ('Sobremesa', 'sobremesa')
+        ]
+        
+        for category_name, data_key in categories:
+            for i in range(meal_start, min(meal_start + 50, len(lines))):
+                line = lines[i]
+                
+                if category_name in line:
+                    words = line.split()
+                    
+                    category_idx = None
+                    for j, word in enumerate(words):
+                        if category_name in word:
+                            category_idx = j
+                            break
+                    
+                    if category_idx is not None and category_idx + col_idx + 1 < len(words):
+                        value = words[category_idx + col_idx + 1]
+                        
+                        if data_key in ['saladas', 'acompanhamentos']:
+                            meal_data[data_key] = [value] if value else []
+                        else:
+                            meal_data[data_key] = value
+                    elif i > 0:
+                        prev_line = lines[i - 1]
+                        words = prev_line.split()
+                        
+                        if col_idx < len(words):
+                            value = words[col_idx]
+                            
+                            if data_key in ['saladas', 'acompanhamentos']:
+                                meal_data[data_key] = [value] if value else []
+                            else:
+                                meal_data[data_key] = value
+                    break
         
         return meal_data
     

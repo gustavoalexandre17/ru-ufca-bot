@@ -164,3 +164,106 @@ FEIJÃO CARIOCA FEIJÃO PRETO
         
         assert isinstance(iso_date, str)
         assert iso_date == "2026-03-09"
+
+    def test_extract_principal_from_real_pdf(self, real_pdf_text):
+        """
+        Teste RED: Deve extrair o prato principal correto do ALMOÇO do PDF real.
+        
+        Arrange: Texto real do PDF (16 a 20/mar)
+        Act: Extrair cardápios
+        Assert: O prato principal do almoço em 16/mar deve conter "COZIDO"
+        """
+        from src.scraper.menu_extractor import MenuExtractor
+        
+        extractor = MenuExtractor(real_pdf_text)
+        menus = extractor.extract_menus()
+        
+        assert "2026-03-16" in menus
+        almoco_16 = menus["2026-03-16"]["almoco"]
+        
+        assert "COZIDO" in almoco_16["prato_principal"]
+
+    def test_extract_vegetariano_from_real_pdf(self, real_pdf_text):
+        """
+        Teste RED: Deve extrair opção vegetariana do ALMOÇO do PDF real.
+        
+        Arrange: Texto real do PDF
+        Act: Extrair cardápios
+        Assert: O vegetariano deve ser extraído (parcialmente aceitável)
+        """
+        from src.scraper.menu_extractor import MenuExtractor
+        
+        extractor = MenuExtractor(real_pdf_text)
+        menus = extractor.extract_menus()
+        
+        almoco_16 = menus["2026-03-16"]["almoco"]
+        
+        assert almoco_16["vegetariano"] != ""
+
+    def test_extract_saladas_from_real_pdf(self, real_pdf_text):
+        """
+        Teste RED: Deve extrair saladas do ALMOÇO do PDF real.
+        
+        Arrange: Texto real do PDF
+        Act: Extrair cardápios
+        Assert: As saladas devem ser extraídas
+        """
+        from src.scraper.menu_extractor import MenuExtractor
+        
+        extractor = MenuExtractor(real_pdf_text)
+        menus = extractor.extract_menus()
+        
+        almoco_16 = menus["2026-03-16"]["almoco"]
+        
+        assert len(almoco_16["saladas"]) > 0
+
+    def test_extract_suco_from_real_pdf(self, real_pdf_text):
+        """
+        Teste RED: Deve extrair suco do ALMOÇO do PDF real.
+        
+        Arrange: Texto real do PDF
+        Act: Extrair cardápios
+        Assert: O suco deve ser extraído (CAJU para 16/mar)
+        """
+        from src.scraper.menu_extractor import MenuExtractor
+        
+        extractor = MenuExtractor(real_pdf_text)
+        menus = extractor.extract_menus()
+        
+        almoco_16 = menus["2026-03-16"]["almoco"]
+        
+        assert "CAJU" in almoco_16["suco"]
+
+    def test_extract_sobremesa_from_real_pdf(self, real_pdf_text):
+        """
+        Teste RED: Deve extrair sobremesa do ALMOÇO do PDF real.
+        
+        Arrange: Texto real do PDF
+        Act: Extrair cardápios
+        Assert: A sobremesa deve ser extraída
+        """
+        from src.scraper.menu_extractor import MenuExtractor
+        
+        extractor = MenuExtractor(real_pdf_text)
+        menus = extractor.extract_menus()
+        
+        almoco_16 = menus["2026-03-16"]["almoco"]
+        
+        assert almoco_16["sobremesa"] != ""
+
+    def test_extract_jantar_principal_from_real_pdf(self, real_pdf_text):
+        """
+        Teste RED: Deve extrair prato principal do JANTAR do PDF real.
+        
+        Arrange: Texto real do PDF
+        Act: Extrair cardápios
+        Assert: O prato principal do jantar deve ser extraído (parcialmente aceitável)
+        """
+        from src.scraper.menu_extractor import MenuExtractor
+        
+        extractor = MenuExtractor(real_pdf_text)
+        menus = extractor.extract_menus()
+        
+        janta_16 = menus["2026-03-16"]["janta"]
+        
+        assert janta_16["prato_principal"] != ""
