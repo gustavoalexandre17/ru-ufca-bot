@@ -107,6 +107,109 @@ class TestSanitizeText:
 
         assert sanitize_text("ALFACE, , CENOURA") == "ALFACE, CENOURA"
 
+    def test_sanitize_replaces_newline_with_space(self):
+        """Deve substituir \\n por espaço."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("FRANGO AO MOLHO\nMOSTARDA") == "FRANGO AO MOLHO MOSTARDA"
+
+    def test_sanitize_collapses_multiple_spaces_after_newline(self):
+        """Após trocar \\n por espaço, espaços duplos devem ser colapsados."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("FRANGO \n MOSTARDA") == "FRANGO MOSTARDA"
+
+    def test_sanitize_newline_at_end(self):
+        """\\n no final deve ser removido."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("MAÇÃ\nDOCE\n") == "MAÇÃ DOCE"
+
+
+# ---------------------------------------------------------------------------
+# Testes de \\n em campos extraídos do PDF
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def table_with_newlines():
+    """
+    Tabela com células contendo \\n internos, replicando o que o pdfplumber
+    retorna para células com múltiplas linhas de texto no PDF.
+    """
+    return [[
+        [None,        "16/mar",                        "17/mar"],
+        ["ALMOÇO",    "ALMOÇO",                        "ALMOÇO"],
+        ["Principal", "FRANGO AO MOLHO\nMOSTARDA",     "PEIXE ASSADO"],
+        ["Vegetariano","LASANHA A BOLHONESA DE\nSOJA", "OMELETE"],
+        ["Saladas",   "TOMATE E\nMANGA",               "REPOLHO"],
+        ["Guarnição", "CUSCUZ",                        "FAROFA"],
+        ["Acompanhamentos", "ARROZ BRANCO\nARROZ INTEGRAL\nFEIJÃO CARIOCA", "ARROZ INTEGRAL"],
+        ["Suco",      "ACEROLA",                       "CAJU"],
+        ["Sobremesa", "MAÇÃ\nDOCE",                    "MELANCIA"],
+        ["JANTAR",    "JANTAR",                        "JANTAR"],
+        ["Principal", "CARNE ASSADA",                  "FRANGO ACEBOLADO"],
+        ["Suco",      "MANGA",                         "GOIABA"],
+        ["Sobremesa", "MELÃO\nDOCE",                   "MAMÃO"],
+    ]]
+
+
+class TestNewlineInFields:
+    """Garante que \\n internos não aparecem em nenhum campo extraído."""
+
+    def test_prato_principal_has_no_newline(self, table_with_newlines):
+        """prato_principal não deve conter \\n."""
+        extractor = TableMenuExtractor(table_with_newlines)
+        menus = extractor.extract_menus()
+
+        valor = menus["2026-03-16"]["almoco"]["prato_principal"]
+        assert "\n" not in valor, f"\\n encontrado em prato_principal: {valor!r}"
+
+    def test_vegetariano_has_no_newline(self, table_with_newlines):
+        """vegetariano não deve conter \\n."""
+        extractor = TableMenuExtractor(table_with_newlines)
+        menus = extractor.extract_menus()
+
+        valor = menus["2026-03-16"]["almoco"]["vegetariano"]
+        assert "\n" not in valor, f"\\n encontrado em vegetariano: {valor!r}"
+
+    def test_saladas_items_have_no_newline(self, table_with_newlines):
+        """Nenhum item de saladas deve conter \\n."""
+        extractor = TableMenuExtractor(table_with_newlines)
+        menus = extractor.extract_menus()
+
+        for item in menus["2026-03-16"]["almoco"]["saladas"]:
+            assert "\n" not in item, f"\\n encontrado em saladas: {item!r}"
+
+    def test_acompanhamentos_items_have_no_newline(self, table_with_newlines):
+        """Nenhum item de acompanhamentos deve conter \\n."""
+        extractor = TableMenuExtractor(table_with_newlines)
+        menus = extractor.extract_menus()
+
+        for item in menus["2026-03-16"]["almoco"]["acompanhamentos"]:
+            assert "\n" not in item, f"\\n encontrado em acompanhamentos: {item!r}"
+
+    def test_sobremesa_has_no_newline(self, table_with_newlines):
+        """sobremesa não deve conter \\n."""
+        extractor = TableMenuExtractor(table_with_newlines)
+        menus = extractor.extract_menus()
+
+        valor = menus["2026-03-16"]["almoco"]["sobremesa"]
+        assert "\n" not in valor, f"\\n encontrado em sobremesa: {valor!r}"
+
+    def test_formatted_output_has_no_newline_artifacts(self, table_with_newlines):
+        """Mensagem formatada final não deve ter \\n dentro de campos de conteúdo."""
+        from src.bot.formatter import MenuFormatter
+
+        extractor = TableMenuExtractor(table_with_newlines)
+        menus = extractor.extract_menus()
+
+        formatter = MenuFormatter()
+        output = formatter.format_full_menu(menus["2026-03-16"], "2026-03-16")
+
+        # Cada linha do output deve ser uma linha inteira — sem \n embutido em valores
+        for line in output.split("\n"):
+            assert "\n" not in line, f"\\n embutido encontrado: {line!r}"
+
 
 # ---------------------------------------------------------------------------
 # Testes de listas sem vírgulas residuais

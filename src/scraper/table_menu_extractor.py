@@ -20,6 +20,10 @@ def sanitize_text(text: str) -> str:
     """
     if not text:
         return ""
+    # Normalizar quebras de linha para espaço
+    text = text.replace('\n', ' ')
+    # Colapsar espaços múltiplos gerados pela substituição
+    text = re.sub(r' {2,}', ' ', text)
     # Colapsar vírgulas duplicadas/triplas com espaços opcionais entre elas
     text = re.sub(r',(\s*,)+', ',', text)
     # Remover vírgula inicial ou final (com espaços adjacentes)
