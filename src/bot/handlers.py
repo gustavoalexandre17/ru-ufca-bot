@@ -7,6 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from src.scraper.menu_extractor import MenuExtractor
+from src.scraper.pdf_parser import PDFParser
 
 
 class BotHandlers:
@@ -19,6 +20,9 @@ class BotHandlers:
     
     async def _send_meal_for_today(self, update: Update, meal_type: str, meal_key: str):
         """Busca o cardápio de hoje no cache e responde ao usuário."""
+        if not update.message:
+            return
+        
         today = datetime.now().strftime("%Y-%m-%d")
         menu_data = self.cache.get_menu(today)
         
@@ -175,7 +179,10 @@ class BotHandlers:
                 tmp_path = tmp.name
             await tg_file.download_to_drive(tmp_path)
 
-            extractor = MenuExtractor(tmp_path)
+            parser = PDFParser(tmp_path)
+            text = parser.extract_text()
+            
+            extractor = MenuExtractor(text)
             weekly_menus = extractor.extract_menus()
 
             for date_str, menu_data in weekly_menus.items():

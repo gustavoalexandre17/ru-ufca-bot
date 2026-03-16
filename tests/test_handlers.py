@@ -392,7 +392,9 @@ class TestPdfUploadHandler:
         mock_file.download_to_drive = AsyncMock()
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
-        with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+        with patch("src.bot.handlers.PDFParser") as mock_parser_cls, \
+             patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+            mock_parser_cls.return_value.extract_text.return_value = "mock pdf text"
             mock_extractor_cls.return_value.extract_menus.return_value = weekly_menus
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
@@ -421,7 +423,9 @@ class TestPdfUploadHandler:
         mock_file.download_to_drive = AsyncMock()
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
-        with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+        with patch("src.bot.handlers.PDFParser") as mock_parser_cls, \
+             patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+            mock_parser_cls.return_value.extract_text.return_value = "mock pdf text"
             mock_extractor_cls.return_value.extract_menus.return_value = weekly_menus
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
@@ -451,7 +455,9 @@ class TestPdfUploadHandler:
         mock_file.download_to_drive = AsyncMock()
         mock_update_admin.message.document.get_file = AsyncMock(return_value=mock_file)
 
-        with patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+        with patch("src.bot.handlers.PDFParser") as mock_parser_cls, \
+             patch("src.bot.handlers.MenuExtractor") as mock_extractor_cls:
+            mock_parser_cls.return_value.extract_text.return_value = "mock pdf text"
             mock_extractor_cls.return_value.extract_menus.side_effect = Exception("PDF corrompido")
 
             handlers = BotHandlers(mock_cache, mock_user_manager, mock_formatter)
