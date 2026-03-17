@@ -125,6 +125,54 @@ class TestSanitizeText:
 
         assert sanitize_text("MAÇÃ\nDOCE\n") == "MAÇÃ DOCE"
 
+    def test_sanitize_escapes_asterisk(self):
+        """Deve escapar asteriscos para não quebrar Markdown do Telegram."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("PEIXE FRITO*") == "PEIXE FRITO\\*"
+
+    def test_sanitize_escapes_multiple_asterisks(self):
+        """Deve escapar múltiplos asteriscos."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("FRANGO* COM MOLHO*") == "FRANGO\\* COM MOLHO\\*"
+
+    def test_sanitize_asterisk_in_middle(self):
+        """Deve escapar asterisco no meio do texto."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("CENOURA AO MOLHO BRANCO*") == "CENOURA AO MOLHO BRANCO\\*"
+
+    def test_sanitize_escapes_underscore(self):
+        """Deve escapar underscores para não quebrar Markdown do Telegram."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("ARROZ_INTEGRAL") == "ARROZ\\_INTEGRAL"
+
+    def test_sanitize_escapes_multiple_underscores(self):
+        """Deve escapar múltiplos underscores."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("ARROZ_INTEGRAL_TEMPERADO") == "ARROZ\\_INTEGRAL\\_TEMPERADO"
+
+    def test_sanitize_replaces_crlf_with_space(self):
+        """Deve substituir \\r\\n (Windows) por espaço."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("FRANGO AO MOLHO\r\nMOSTARDA") == "FRANGO AO MOLHO MOSTARDA"
+
+    def test_sanitize_replaces_cr_with_space(self):
+        """Deve substituir \\r (Mac antigo) por espaço."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("FRANGO AO MOLHO\rMOSTARDA") == "FRANGO AO MOLHO MOSTARDA"
+
+    def test_sanitize_handles_mixed_line_endings(self):
+        """Deve lidar com múltiplos tipos de quebra de linha."""
+        from src.scraper.table_menu_extractor import sanitize_text
+
+        assert sanitize_text("A\nB\r\nC\rD") == "A B C D"
+
 
 # ---------------------------------------------------------------------------
 # Testes de \\n em campos extraídos do PDF

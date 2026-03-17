@@ -7,27 +7,33 @@ from datetime import datetime
 
 def sanitize_text(text: str) -> str:
     """
-    Remove vírgulas extras e espaços desnecessários de um texto.
+    Limpa e normaliza texto extraído de PDF para exibição no Telegram.
 
-    - Colapsa sequências de vírgulas (com ou sem espaços entre elas) em uma só
-    - Remove vírgulas no início e no final
-    - Remove espaços nas bordas
+    Operações (em ordem):
+        1. Normaliza quebras de linha (\\n, \\r\\n, \\r) para espaço
+        2. Colapsa espaços múltiplos em um único espaço
+        3. Colapsa sequências de vírgulas (com ou sem espaços) em uma só
+        4. Remove espaços e vírgulas no início e no final
+        5. Escapa caracteres especiais do Markdown (* e _)
 
-    Exemplos:
-        "ACEROLA,"        → "ACEROLA"
-        "ALFACE,, CENOURA" → "ALFACE, CENOURA"
-        "ALFACE, , CENOURA" → "ALFACE, CENOURA"
+    Args:
+        text: Texto bruto extraído do PDF.
+
+    Returns:
+        Texto sanitizado e pronto para envio ao Telegram.
     """
     if not text:
         return ""
-    # Normalizar quebras de linha para espaço
-    text = text.replace('\n', ' ')
-    # Colapsar espaços múltiplos gerados pela substituição
+    # 1. Normalizar todas as variantes de quebra de linha para espaço
+    text = text.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
+    # 2. Colapsar espaços múltiplos em um único espaço
     text = re.sub(r' {2,}', ' ', text)
-    # Colapsar vírgulas duplicadas/triplas com espaços opcionais entre elas
+    # 3. Colapsar vírgulas duplicadas/triplas com espaços opcionais entre elas
     text = re.sub(r',(\s*,)+', ',', text)
-    # Remover vírgula inicial ou final (com espaços adjacentes)
-    text = text.strip().strip(',').strip()
+    # 4. Remover espaços e vírgulas nas bordas
+    text = re.sub(r'^[\s,]+|[\s,]+$', '', text)
+    # 5. Escapar caracteres especiais do Markdown do Telegram
+    text = text.replace('*', '\\*').replace('_', '\\_')
     return text
 
 

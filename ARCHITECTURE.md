@@ -3,7 +3,7 @@
 > Bot de Telegram para consulta de cardápios do Restaurante Universitário da UFCA
 
 **Status:** Em Produção  
-**Última atualização:** 15/03/2026
+**Última atualização:** 16/03/2026
 
 ---
 
@@ -32,8 +32,9 @@ src/
 ├── cache/
 │   └── menu_cache.py    # MenuCache + UserManager
 └── scraper/
-    ├── pdf_parser.py    # Extração de texto do PDF
-    └── menu_extractor.py # Parsing do cardápio
+    ├── pdf_parser.py            # Extração bruta de texto/tabelas do PDF (pdfplumber)
+    ├── table_menu_extractor.py  # Extrator principal — lê tabelas, sanitiza e organiza por data
+    └── menu_extractor.py        # Extrator fallback — baseado em texto puro
 ```
 
 ---
@@ -83,8 +84,8 @@ Atualização via pull + rebuild do container. (Passivel de automatização futu
 
 ## Testes
 
-- **66/66 testes passando**
-- **Cobertura:** 90%
+- **102/102 testes passando**
+- **Cobertura:** 88%
 
 ---
 

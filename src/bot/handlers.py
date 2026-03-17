@@ -84,7 +84,7 @@ class BotHandlers:
             formatted_date = self.formatter.format_date(date_str)
             day_menu = weekly_menu[date_str]
             
-            messages.append(f"\n{'─' * 30}")
+            messages.append(f"\n{'─' * 25}")
             messages.append(f"📆 *{formatted_date}*\n")
             
             if "almoco" in day_menu:
