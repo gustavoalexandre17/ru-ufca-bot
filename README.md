@@ -20,8 +20,8 @@ Este bot permite que estudantes da UFCA consultem o cardápio do RU de forma rá
 
 Este projeto segue:
 - **Metodologia:** Test-Driven Development (TDD)
-- **Cobertura de testes:** 60-70% (pragmático)
-- **Linguagem:** Python 3.11+
+- **Cobertura de testes:** 80-90%
+- **Linguagem:** Python 3.10+
 
 Consulte [ARCHITECTURE.md](./ARCHITECTURE.md) para detalhes completos das decisões arquiteturais.
 
@@ -29,7 +29,7 @@ Consulte [ARCHITECTURE.md](./ARCHITECTURE.md) para detalhes completos das decis�
 
 ### Pré-requisitos
 
-- Python 3.11 ou superior
+- Python 3.10 ou superior
 - pip
 
 ### Instalação
