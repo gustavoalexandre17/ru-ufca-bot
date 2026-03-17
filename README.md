@@ -95,6 +95,11 @@ pytest -v
 
 ```
 ru-ufca-bot/
+├── .opencode/             # Configuração do OpenCode
+│   └── agents/            # Sub-agents especializados
+│       ├── tester.md      # Gera testes automatizados
+│       ├── reviewer.md    # Revisão crítica de código
+│       └── refactorer.md  # Refatoração de código
 ├── src/                    # Código fonte
 │   ├── cache/             # Gerenciamento de cache
 │   ├── scraper/           # Parsing de PDFs
@@ -105,6 +110,7 @@ ru-ufca-bot/
 │   └── test_*.py          # Arquivos de teste
 ├── data/                   # Dados persistidos
 ├── requirements.txt        # Dependências
+├── requirements-dev.txt    # Dependências de desenvolvimento
 └── ARCHITECTURE.md         # Documentação de arquitetura
 ```
 
