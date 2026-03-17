@@ -77,3 +77,6 @@ SETUP_SUMMARY.md
 ENVIRONMENT_SETUP.md
 TESTES_LOCAIS.md
 *.pdf
+
+# OpenCode configuration
+.opencode/
