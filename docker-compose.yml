@@ -1,6 +1,6 @@
 services:
   bot:
-    image: ghcr.io/gustavoalexandre17/ru-ufca-bot:latest
+    image: alexanderthebig2/ru-ufca-bot:latest
     restart: unless-stopped
     env_file:
       - .env
